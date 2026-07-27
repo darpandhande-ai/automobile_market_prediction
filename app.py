@@ -5,211 +5,317 @@ from flask import Flask, render_template_string, request, jsonify
 
 app = Flask(__name__)
 
-# Load the Scikit-learn Random Forest model
+# Load Trained Model
 MODEL_PATH = "random_forest_model_.pkl"
 model = None
 
 if os.path.exists(MODEL_PATH):
-    with open(MODEL_PATH, "rb") as f:
-        model = pickle.load(f)
+    try:
+        with open(MODEL_PATH, "rb") as f:
+            model = pickle.load(f)
+        print("✅ Model loaded successfully!")
+    except Exception as e:
+        print(f"⚠️ Error loading model: {e}")
+else:
+    print(f"⚠️ Warning: Model file '{MODEL_PATH}' not found in the directory.")
 
-# HTML Template with Embedded CSS & JS
+# Feature Mapping Configuration for Human-Friendly Dropdowns
+DROPDOWN_OPTIONS = {
+    'Make': {'Toyota': 0, 'Honda': 1, 'Ford': 2, 'BMW': 3, 'Mercedes': 4, 'Audi': 5, 'Chevrolet': 6},
+    'Fuel_Type': {'Petrol': 0, 'Diesel': 1, 'Hybrid': 2, 'Electric': 3},
+    'Transmission': {'Manual': 0, 'Automatic': 1, 'Semi-Automatic': 2},
+    'Accident_History': {'No Accidents': 0, 'Minor Damage': 1, 'Major Accident': 2},
+    'Service_History': {'Full Service History': 1, 'Partial History': 0},
+    'Color': {'Black': 0, 'White': 1, 'Silver': 2, 'Blue': 3, 'Red': 4},
+    'Body_Type': {'Sedan': 0, 'SUV': 1, 'Hatchback': 2, 'Coupe': 3, 'Convertible': 4},
+    'Drivetrain': {'FWD': 0, 'RWD': 1, 'AWD': 2, '4WD': 3},
+    'Location': {'Urban Center': 0, 'Suburban': 1, 'Rural': 2}
+}
+
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Car Price Predictor</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <title>AutoValuate AI | Next-Gen Price Intelligence</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
     <style>
         :root {
-            --primary-grad: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-            --accent-grad: linear-gradient(135deg, #3b82f6 0%, #2dd4bf 100%);
-            --bg-color: #0f172a;
-            --card-bg: rgba(30, 41, 59, 0.7);
-            --text-color: #f8fafc;
-            --input-bg: rgba(15, 23, 42, 0.6);
-            --border-color: rgba(255, 255, 255, 0.1);
+            --bg-color: #080c14;
+            --panel-bg: rgba(15, 23, 42, 0.75);
+            --primary: #6366f1;
+            --primary-glow: #818cf8;
+            --accent: #06b6d4;
+            --accent-glow: rgba(6, 182, 212, 0.4);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --input-bg: rgba(2, 6, 23, 0.6);
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            font-family: 'Poppins', sans-serif;
+            font-family: 'Inter', sans-serif;
         }
 
         body {
             background-color: var(--bg-color);
-            color: var(--text-color);
+            color: var(--text-primary);
             min-height: 100vh;
             display: flex;
-            justify-content: center;
             align-items: center;
-            overflow-x: hidden;
-            padding: 40px 20px;
+            justify-content: center;
+            padding: 3rem 1.5rem;
             position: relative;
+            overflow-x: hidden;
         }
 
-        /* Animated Background Orbs */
+        /* Ambient Animated Background Orbs */
         .orb {
             position: absolute;
             border-radius: 50%;
-            filter: blur(80px);
+            filter: blur(120px);
             z-index: 0;
-            animation: float 10s infinite ease-in-out alternate;
+            pointer-events: none;
+            animation: float 12s infinite alternate ease-in-out;
         }
 
         .orb-1 {
-            width: 300px;
-            height: 300px;
-            background: rgba(99, 102, 241, 0.3);
-            top: 10%;
-            left: 10%;
+            width: 450px;
+            height: 450px;
+            background: rgba(99, 102, 241, 0.25);
+            top: -100px;
+            left: -100px;
         }
 
         .orb-2 {
-            width: 350px;
-            height: 350px;
-            background: rgba(168, 85, 247, 0.25);
-            bottom: 10%;
-            right: 10%;
-            animation-delay: -5s;
+            width: 500px;
+            height: 500px;
+            background: rgba(6, 182, 212, 0.2);
+            bottom: -150px;
+            right: -100px;
+            animation-delay: -6s;
         }
 
         @keyframes float {
-            0% { transform: translateY(0) scale(1); }
-            100% { transform: translateY(-30px) scale(1.1); }
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(50px, 40px) scale(1.15); }
         }
 
-        /* Container Card */
-        .container {
-            position: relative;
-            z-index: 1;
+        /* Container Layout */
+        .wrapper {
             width: 100%;
-            max-width: 900px;
-            background: var(--card-bg);
-            backdrop-filter: blur(16px);
+            max-width: 1100px;
+            z-index: 1;
+            display: grid;
+            grid-template-columns: 1fr 340px;
+            gap: 2rem;
+        }
+
+        @media (max-width: 968px) {
+            .wrapper { grid-template-columns: 1fr; }
+        }
+
+        .main-card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border: 1px solid var(--border-color);
-            border-radius: 24px;
-            padding: 40px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-            animation: fadeIn 0.8s ease-out;
+            border-radius: 28px;
+            padding: 2.5rem;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
+        /* Typography & Header */
+        h1, h2, h3 { font-family: 'Space Grotesk', sans-serif; }
+
+        .header {
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.25rem;
         }
 
-        h1 {
-            text-align: center;
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0.85rem;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(129, 140, 248, 0.3);
+            border-radius: 50px;
+            color: var(--primary-glow);
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            margin-bottom: 0.75rem;
+        }
+
+        .header h1 {
             font-size: 2.2rem;
             font-weight: 700;
-            background: var(--primary-grad);
+            background: linear-gradient(135deg, #ffffff 30%, var(--accent) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 10px;
         }
 
-        p.subtitle {
-            text-align: center;
-            color: #94a3b8;
+        .header p {
+            color: var(--text-secondary);
             font-size: 0.95rem;
-            margin-bottom: 30px;
+            margin-top: 0.25rem;
         }
 
-        /* Form Grid */
+        /* Form Grid Structure */
         .form-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.25rem;
         }
 
         .input-group {
             display: flex;
             flex-direction: column;
+            gap: 0.4rem;
         }
 
         .input-group label {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             font-weight: 600;
-            margin-bottom: 8px;
-            color: #cbd5e1;
+            color: var(--text-secondary);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.05em;
         }
 
-        .input-group input {
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 0.8rem 1rem;
             background: var(--input-bg);
             border: 1px solid var(--border-color);
-            color: #fff;
-            padding: 12px 16px;
             border-radius: 12px;
+            color: var(--text-primary);
             font-size: 0.95rem;
             outline: none;
-            transition: all 0.3s ease;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .input-group input:focus {
-            border-color: #a855f7;
-            box-shadow: 0 0 12px rgba(168, 85, 247, 0.3);
-            background: rgba(15, 23, 42, 0.8);
+        .input-group input:focus, .input-group select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+            background: rgba(15, 23, 42, 0.9);
         }
 
-        /* Button Styling */
         .btn-submit {
             grid-column: 1 / -1;
-            margin-top: 15px;
-            padding: 16px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #fff;
-            background: var(--primary-grad);
+            margin-top: 1rem;
+            padding: 1.1rem;
             border: none;
-            border-radius: 12px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--primary) 0%, #4338ca 100%);
+            color: #ffffff;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 700;
             cursor: pointer;
-            transition: transform 0.2s ease, box-shadow 0.3s ease;
-            box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3);
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
         }
 
         .btn-submit:hover {
             transform: translateY(-2px);
-            box-shadow: 0 15px 25px rgba(168, 85, 247, 0.4);
+            box-shadow: 0 15px 30px -5px rgba(99, 102, 241, 0.6);
+            background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
         }
 
-        .btn-submit:active {
-            transform: translateY(0);
+        /* Floating Sidebar Card for Real-time Results */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
         }
 
-        /* Result Display Box */
-        .result-box {
-            margin-top: 30px;
-            padding: 20px;
-            border-radius: 16px;
-            background: var(--accent-grad);
+        .result-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: 28px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             text-align: center;
-            display: none;
-            animation: pulseIn 0.5s ease-out forwards;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.6);
+            min-height: 280px;
+            position: relative;
+            overflow: hidden;
         }
 
-        @keyframes pulseIn {
-            0% { opacity: 0; transform: scale(0.9); }
-            100% { opacity: 1; transform: scale(1); }
+        .result-panel::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
         }
 
-        .result-box h2 {
-            font-size: 1.2rem;
-            color: #f8fafc;
-            font-weight: 400;
+        .val-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
         }
 
-        .result-box span {
-            font-size: 2.2rem;
+        .val-amount {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 2.8rem;
             font-weight: 700;
-            display: block;
-            margin-top: 5px;
+            color: #ffffff;
+            text-shadow: 0 0 20px var(--accent-glow);
+            margin: 0.5rem 0;
+            transition: all 0.4s ease;
+        }
+
+        .model-status {
+            font-size: 0.8rem;
+            color: #10b981;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-top: 1rem;
+            padding: 0.3rem 0.75rem;
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 20px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        .spinner {
+            display: none;
+            width: 32px;
+            height: 32px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top-color: var(--accent);
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -218,63 +324,200 @@ HTML_TEMPLATE = """
     <div class="orb orb-1"></div>
     <div class="orb orb-2"></div>
 
-    <div class="container">
-        <h1>Car Price Predictor</h1>
-        <p class="subtitle">Enter the numeric feature values to estimate the car value</p>
-
-        <form id="predictionForm">
-            <div class="form-grid">
-                <div class="input-group"><label>Make</label><input type="number" step="any" name="Make" required value="0"></div>
-                <div class="input-group"><label>Model</label><input type="number" step="any" name="Model" required value="0"></div>
-                <div class="input-group"><label>Year</label><input type="number" name="Year" required value="2020"></div>
-                <div class="input-group"><label>Fuel Type</label><input type="number" step="any" name="Fuel_Type" required value="0"></div>
-                <div class="input-group"><label>Transmission</label><input type="number" step="any" name="Transmission" required value="0"></div>
-                <div class="input-group"><label>Engine Size</label><input type="number" step="any" name="Engine_Size" required value="2.0"></div>
-                <div class="input-group"><label>Mileage</label><input type="number" step="any" name="Mileage" required value="45000"></div>
-                <div class="input-group"><label>Horsepower</label><input type="number" step="any" name="Horsepower" required value="180"></div>
-                <div class="input-group"><label>Torque</label><input type="number" step="any" name="Torque" required value="250"></div>
-                <div class="input-group"><label>Owners</label><input type="number" name="Owners" required value="1"></div>
-                <div class="input-group"><label>Accident History</label><input type="number" step="any" name="Accident_History" required value="0"></div>
-                <div class="input-group"><label>Service History</label><input type="number" step="any" name="Service_History" required value="1"></div>
-                <div class="input-group"><label>Color</label><input type="number" step="any" name="Color" required value="0"></div>
-                <div class="input-group"><label>Body Type</label><input type="number" step="any" name="Body_Type" required value="0"></div>
-                <div class="input-group"><label>Drivetrain</label><input type="number" step="any" name="Drivetrain" required value="0"></div>
-                <div class="input-group"><label>Fuel Efficiency</label><input type="number" step="any" name="Fuel_Efficiency" required value="15.5"></div>
-                <div class="input-group"><label>Location</label><input type="number" step="any" name="Location" required value="0"></div>
-
-                <button type="submit" class="btn-submit">Predict Value</button>
+    <div class="wrapper">
+        <!-- Input Form Section -->
+        <div class="main-card">
+            <div class="header">
+                <span class="badge">🤖 ML Model Integrated</span>
+                <h1>Vehicle Price Predictor</h1>
+                <p>Configure parameters below to compute an AI-driven valuation.</p>
             </div>
-        </form>
 
-        <div id="resultBox" class="result-box">
-            <h2>Estimated Car Price</h2>
-            <span id="predictedPrice">$0.00</span>
+            <form id="predictionForm" class="form-grid">
+                
+                <!-- Category Inputs with Human Labels -->
+                <div class="input-group">
+                    <label>Make</label>
+                    <select name="Make">
+                        {% for key in dropdowns.Make %}
+                            <option value="{{ dropdowns.Make[key] }}">{{ key }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Model ID</label>
+                    <input type="number" name="Model" value="1" min="0" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Year</label>
+                    <input type="number" name="Year" value="2021" min="1990" max="2026" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Fuel Type</label>
+                    <select name="Fuel_Type">
+                        {% for key in dropdowns.Fuel_Type %}
+                            <option value="{{ dropdowns.Fuel_Type[key] }}">{{ key }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Transmission</label>
+                    <select name="Transmission">
+                        {% for key in dropdowns.Transmission %}
+                            <option value="{{ dropdowns.Transmission[key] }}">{{ key }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Engine Size (L)</label>
+                    <input type="number" step="0.1" name="Engine_Size" value="2.0" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Mileage (Miles/KM)</label>
+                    <input type="number" name="Mileage" value="35000" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Horsepower (HP)</label>
+                    <input type="number" name="Horsepower" value="220" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Torque (Nm)</label>
+                    <input type="number" name="Torque" value="300" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Previous Owners</label>
+                    <input type="number" name="Owners" value="1" min="0" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Accident History</label>
+                    <select name="Accident_History">
+                        {% for key in dropdowns.Accident_History %}
+                            <option value="{{ dropdowns.Accident_History[key] }}">{{ key }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Service History</label>
+                    <select name="Service_History">
+                        {% for key in dropdowns.Service_History %}
+                            <option value="{{ dropdowns.Service_History[key] }}">{{ key }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Color</label>
+                    <select name="Color">
+                        {% for key in dropdowns.Color %}
+                            <option value="{{ dropdowns.Color[key] }}">{{ key }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Body Type</label>
+                    <select name="Body_Type">
+                        {% for key in dropdowns.Body_Type %}
+                            <option value="{{ dropdowns.Body_Type[key] }}">{{ key }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Drivetrain</label>
+                    <select name="Drivetrain">
+                        {% for key in dropdowns.Drivetrain %}
+                            <option value="{{ dropdowns.Drivetrain[key] }}">{{ key }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Fuel Efficiency (MPG/KML)</label>
+                    <input type="number" step="0.1" name="Fuel_Efficiency" value="28.5" required>
+                </div>
+
+                <div class="input-group">
+                    <label>Location Region</label>
+                    <select name="Location">
+                        {% for key in dropdowns.Location %}
+                            <option value="{{ dropdowns.Location[key] }}">{{ key }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <button type="submit" class="btn-submit" id="submitBtn">
+                    <span>Calculate Market Value</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Sidebar / Result Display Card -->
+        <div class="sidebar">
+            <div class="result-panel">
+                <div class="spinner" id="loadingSpinner"></div>
+                
+                <div id="resultBox">
+                    <div class="val-title">Estimated Market Price</div>
+                    <div class="val-amount" id="predictedPrice">$0.00</div>
+                </div>
+
+                <div class="model-status">
+                    <span class="status-dot"></span>
+                    RandomForestRegressor Active
+                </div>
+            </div>
         </div>
     </div>
 
+    <!-- Async Form Handling Script -->
     <script>
-        document.getElementById('predictionForm').addEventListener('submit', async function(e) {
+        document.getElementById('predictionForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const formData = new FormData(this);
-            const data = {};
-            formData.forEach((value, key) => { data[key] = parseFloat(value); });
+            const submitBtn = document.getElementById('submitBtn');
+            const spinner = document.getElementById('loadingSpinner');
+            const priceDisplay = document.getElementById('predictedPrice');
+            const formData = new FormData(e.target);
 
-            const response = await fetch('/predict', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
+            // UI Feedback: Loading
+            spinner.style.display = 'block';
+            priceDisplay.style.opacity = '0.3';
+            submitBtn.style.pointerEvents = 'none';
 
-            const result = await response.json();
-            const resultBox = document.getElementById('resultBox');
-            const priceSpan = document.getElementById('predictedPrice');
+            try {
+                const response = await fetch('/predict_api', {
+                    method: 'POST',
+                    body: formData
+                });
 
-            if (result.success) {
-                priceSpan.innerText = '$' + result.prediction.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-                resultBox.style.display = 'block';
-            } else {
-                alert('Prediction Error: ' + result.error);
+                const result = await response.json();
+
+                if (result.success) {
+                    priceDisplay.innerText = result.prediction;
+                } else {
+                    priceDisplay.innerText = "Error";
+                    alert(result.error || "An error occurred standardizing inputs.");
+                }
+            } catch (err) {
+                console.error(err);
+                priceDisplay.innerText = "Error";
+            } finally {
+                // UI Reset
+                spinner.style.display = 'none';
+                priceDisplay.style.opacity = '1';
+                submitBtn.style.pointerEvents = 'all';
             }
         });
     </script>
@@ -282,33 +525,36 @@ HTML_TEMPLATE = """
 </html>
 """
 
-@app.route('/')
+@app.route("/", methods=["GET"])
 def home():
-    return render_template_string(HTML_TEMPLATE)
+    return render_template_string(HTML_TEMPLATE, dropdowns=DROPDOWN_OPTIONS)
 
-@app.route('/predict', methods=['POST'])
-def predict():
+@app.route("/predict_api", methods=["POST"])
+def predict_api():
+    """Asynchronous API endpoint to serve requests seamlessly without page reload."""
     if model is None:
-        return jsonify({'success': False, 'error': 'Model file not loaded properly on the server.'})
+        return jsonify({"success": False, "error": "Model file random_forest_model_.pkl not found on server."})
 
     try:
-        data = request.get_json()
-        
-        # Order inputs strictly matching feature_names_in_ from the trained model
+        # Exact sequence expected by the Random Forest model features
         feature_order = [
-            'Make', 'Model', 'Year', 'Fuel_Type', 'Transmission', 'Engine_Size', 
-            'Mileage', 'Horsepower', 'Torque', 'Owners', 'Accident_History', 
-            'Service_History', 'Color', 'Body_Type', 'Drivetrain', 
-            'Fuel_Efficiency', 'Location'
+            'Make', 'Model', 'Year', 'Fuel_Type', 'Transmission', 'Engine_Size',
+            'Mileage', 'Horsepower', 'Torque', 'Owners', 'Accident_History',
+            'Service_History', 'Color', 'Body_Type', 'Drivetrain', 'Fuel_Efficiency', 'Location'
         ]
-        
-        features = [float(data.get(feat, 0)) for feat in feature_order]
-        prediction = model.predict([features])[0]
 
-        return jsonify({'success': True, 'prediction': float(prediction)})
-    
+        # Read form features dynamically in correct feature order
+        features = [float(request.form.get(feat, 0)) for feat in feature_order]
+        features_array = np.array([features])
+
+        # Prediction
+        prediction_val = model.predict(features_array)[0]
+        formatted_val = f"${prediction_val:,.2f}"
+
+        return jsonify({"success": True, "prediction": formatted_val})
+
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({"success": False, "error": str(e)})
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)
