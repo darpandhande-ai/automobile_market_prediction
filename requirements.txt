@@ -1,5 +1,5 @@
-Flask
-numpy
+flask
 pandas
 scikit-learn
-werkzeug
+numpy
+gunicorn
